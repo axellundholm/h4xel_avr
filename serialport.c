@@ -22,19 +22,17 @@ static int fd, c, res;
 static struct termios oldtio, newtio;
 static char *device;
 
-int serial_init(char *modemdevice)
-{
+int serial_init(char *modemdevice) {
     /*
      * Open modem device for reading and writing and not as controlling tty
      * because we don't want to get killed if linenoise sends CTRL-C.
      **/
     device = modemdevice;
     fd = open (device, O_RDWR | O_NOCTTY );
-    if (fd < 0)
-      {
+    if (fd < 0) {
 	  perror (device);
 	  exit(-1);
-      }
+    }
 
     tcgetattr (fd, &oldtio);	/* save current serial port settings */
     memcpy(&newtio, &oldtio, sizeof(newtio));
@@ -96,8 +94,8 @@ int serial_init(char *modemdevice)
     return fd;
 }
 
-void serial_cleanup(int ifd){
-    if(ifd != fd) {
+void serial_cleanup(int ifd) {
+    if (ifd != fd) {
 	    fprintf(stderr, "WARNING! file descriptor != the one returned by serial_init()\n");
     }
     /* restore the old port settings */
@@ -117,7 +115,7 @@ int serial_read() {
 
     bytes_read = read(fd, buf, nbytes);
 
-    if(bytes_read > 0) {
+    if (bytes_read > 0) {
         printf("%zd bytes was read from device.\n", bytes_read);
         printf("The following string was read: \n%s\n", buf);
     } else {
@@ -132,15 +130,21 @@ int serial_write() {
     
     char buf[100];
     ssize_t bytes_written;
+    uint8_t test = 250;
 
     printf("Enter message: \n");
     scanf("%s", buf);
 
     size_t nbytes = strlen(buf);
 
-    bytes_written = write(fd, buf, nbytes);
+    if (buf[0] == 'r') {
+        bytes_written = write(fd, &test, 1);
+    } else {
+        bytes_written = write(fd, buf, nbytes);
+    }
 
-    if(bytes_written > 0) {
+
+    if (bytes_written > 0) {
         printf("%zd bytes was written to device.\n", bytes_written);
     } else {
         printf("%s\n", strerror(errno));
@@ -155,7 +159,7 @@ int main(int argc, char *argv[]) {
 
     fd = serial_init("/dev/ttyS0");
 
-    while(1){
+    while (1) {
         serial_write();
         serial_read();
     }

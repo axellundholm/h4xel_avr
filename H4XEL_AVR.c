@@ -35,7 +35,7 @@ volatile uint8_t speed = 10;
 
 
 /*Setup for the interrupts connected to the encoder, and sets original stage*/
-void setup(){
+void setup() {
 	DDRC &= ~((1<<PC0)|(1<<PC1));		//Sets PC0 & PC1 as input
 	PORTC = (1<<PC0)|(1<<PC1);			//PC0 & PC1 is mow pull-up enabled
 	PCICR = (1<<PCIE1);					//Enables PCINt8 & PCINT9, in control register
@@ -45,14 +45,14 @@ void setup(){
 	DDRC |= (1<<PC5)|(1<<PC4);			//---- For testing ----
 }
 
-void setupPWM(){
+void setupPWM() {
 	DDRD = (1<<PD6);					//Sets PD6/OC0A to output, for PWM
 	TCCR0A = (1<<WGM01)|(1<<WGM00)|(1<<COM0A1)|(1<<(COM0A0));	//Fast PWM, set OC0A on Compare Match
 	TCCR0B = (1<<CS00);					//Clock select = no prescaling
 	OCR0A = 0x00;						//Clear reference value
 }
 
-void setupUSART(unsigned char ubrr){
+void setupUSART() {
 
 	uint8_t sreg;
 	/* Save global interrupt flag */
@@ -95,7 +95,7 @@ void USART_Transmit(unsigned char data)
 {
 	/* Wait for empty transmit buffer */ 
 	while (!(UCSR0A & (1<<UDRE0)))
-		; 
+		;
 	
 	/* Put data into buffer, sends the data */ 
 	UDR0 = data;
@@ -109,18 +109,23 @@ ISR(PCINT1_vect){
 	newAB = PINC & (A|B);
 	
 	/* René Sommer algorithm for increasing and decreasing the speed.*/
-	if (((((oldAB&(1<<A))>>1) | ((oldAB&(1<<B))<<1)) ^ (newAB)) == 0x01){
+	if (((((oldAB&(1<<A))>>1) | ((oldAB&(1<<B))<<1)) ^ (newAB)) == 0x01) {
 		decrease();
-	} else if (((((oldAB&(1<<A))>>1) | ((oldAB&(1<<B))<<1)) ^ (newAB)) == 0x02){
+	} else if (((((oldAB&(1<<A))>>1) | ((oldAB&(1<<B))<<1)) ^ (newAB)) == 0x02) {
 		increase();
 	}
 	oldAB = newAB;
 }
 
 ISR(USART_RX_vect){
-	char recievedByte;
+	int recievedByte;
 	recievedByte = UDR0;
 
+	if (recievedByte == 250) {
+		PORTC ^= (1<<PC5)|(1<<PC4);
+	} else {
+
+	}
 	/* Echo the recieved byte */
 	USART_Transmit(recievedByte);
 }
@@ -135,7 +140,7 @@ ISR(USART_RX_vect){
 int main(void){
 	setup();
 	setupPWM();
-	setupUSART(MYUBRR);
+	setupUSART();
 	
 	while (1){
 

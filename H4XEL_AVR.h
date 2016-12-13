@@ -12,7 +12,7 @@
 /*Setup for the interrupts connected to the encoder, and sets original stage*/
 void setup(void);
 void setupPWM(void);
-void setupUSART(unsigned char ubrr);
+void setupUSART(void);
 void increase(void);
 void decrease(void);
 
