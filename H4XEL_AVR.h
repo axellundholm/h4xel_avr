@@ -17,6 +17,6 @@ void setupClock(void);
 void increase(void);
 void decrease(void);
 
-uint32_t average(void);
+int average(void);
 
 #endif

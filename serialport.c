@@ -124,30 +124,34 @@ int main (){
 
 
 	int fd = serial_init("/dev/ttyS0");
+
+	unsigned  char buf [20];
+	size_t  nbytes = 1;
+	ssize_t  bytes_written;
+	ssize_t  bytes_read;
+	unsigned char choice;
 	
 	while(1){
-		unsigned  char buf [20];
-		size_t  nbytes = 1;
-		ssize_t  bytes_written;
-		ssize_t  bytes_read;
-		unsigned char choice;
-		printf("r (READ) / w (WRITE) / q (QUIT)");
+		
+		printf("r (READ) / w (WRITE) / q (QUIT)\n");
 		scanf("%c",&choice);
-		if(choice == 'w'){
+		if (choice == 'w') {
 			printf("Set reference speed: ");
 			scanf("%d",&buf);
 
 			bytes_written = write(fd, buf , nbytes);
-		} 
-		if(choice == 'r'){ 
+		} else if (choice == 'r') { 
 			buf[0] = 250;
 			bytes_written = write(fd, buf , nbytes);
 
 			bytes_read = read(fd, buf, nbytes);
+
 			printf("Speed is ");
 			printf("%d\n", *buf);
-		} 	
+		} else if (choice == 'q') {
+			serial_cleanup(fd);
+			exit(1);
+		}
 	}
-	serial_cleanup(fd);
 }
 

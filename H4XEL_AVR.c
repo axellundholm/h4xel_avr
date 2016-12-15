@@ -94,7 +94,7 @@ void addToBuffer(uint16_t time) {
 	}
 }
 
-uint32_t averageTime() {
+int averageTime() {
 	uint32_t total = 0;
 	for (int k = 0; k < BUFFSIZE; k++) {
 		total += ringBuffer[k];
@@ -146,19 +146,17 @@ ISR(PCINT1_vect){
 }
 
 ISR(USART_RX_vect){
-	int recievedByte;
-
+	uint8_t recievedByte;
 	recievedByte = UDR0;
 
-	/*
 	if (recievedByte == 250) {
-		USART_Transmit(recievedByte);
+		USART_Transmit(rpm);
 	} else {
 		OCR0A = recievedByte;	//Set RPM
-	} */
+	}
 
 	/* Echo the recieved byte */
-	USART_Transmit(recievedByte);
+	// USART_Transmit(recievedByte);
 }
 
 
