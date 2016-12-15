@@ -150,13 +150,15 @@ ISR(USART_RX_vect){
 
 	recievedByte = UDR0;
 
+	/*
 	if (recievedByte == 250) {
 		USART_Transmit(recievedByte);
 	} else {
 		OCR0A = recievedByte;	//Set RPM
-	}
+	} */
+
 	/* Echo the recieved byte */
-	//USART_Transmit(recievedByte);
+	USART_Transmit(recievedByte);
 }
 
 
