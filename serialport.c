@@ -119,13 +119,13 @@ void serial_cleanup(int ifd){
 
 /* Reads a character to the serial port.
 */
-void serial_read(){
+void serial_read() {
   char array[20];
   size_t nbytes = 1;  //We only use 8-bit conversation
   ssize_t bytes_read;
   //nbytes = sizeof(array); always 8-bits since the serial comunication & avr is 8-bit data.
   bytes_read = read(fd,array,nbytes); //nbytes
-  if(bytes_read < 0){
+  if (bytes_read < 0) {
     printf("Oooh dear, something went wrong with the read function! %s\n", strerror(errno));
     exit(-1);
   } else {
@@ -135,12 +135,12 @@ void serial_read(){
 
 /* Writes characters to the serial port.
 */
-void serial_write(){
+void serial_write() {
   char array[20];
   size_t nbytes = 1;
   ssize_t bytes_written;
 
-  printf("Set a rpm for the motor (rpm ≈ [0,120]): \n");
+  printf("Set a rpm for the motor (rpm ≈ [0,120]): ");
   scanf("%d",&array);
   getchar(); //flush the new line mark that comes with enter key after Integers
   /* strlen() : determining the length (the lenght of the string itself,
@@ -148,7 +148,7 @@ void serial_write(){
   */
   //nbytes = sizeof(array); //intlen()? don't need more than 8-bit...
   bytes_written = write(fd,&array,nbytes);
-  if(bytes_written < 0){
+  if(bytes_written < 0) {
     printf("Oooh dear, something went wrong with the write function! %s\n", strerror(errno));
     exit(-1);
   }
@@ -156,27 +156,27 @@ void serial_write(){
 
 /* the Main code that alternates between reading and writing on the serial port.
 */
-int main(){
+int main() {
   // "/dev/ttypS0 == COM1"
   fd = serial_init("/dev/ttyS0");
   char alt;
   uint8_t readMode = 250;					//to tell the AVR to transmit
 
-  while(1){
-	   printf("r (READ) / w (WRITE) / q (QUIT))\n");
+  while(1) {
+	   printf("r (READ) / w (WRITE) / q (QUIT): ");
      scanf("%c",&alt);
-     if(alt == 'r'){
+     if (alt == 'r') {
        write(fd,&readMode,1);
        serial_read();
-     }else if(alt == 'w'){
+     } else if (alt == 'w') {
        serial_write();
-     }else if(alt == 'q'){
+     } else if (alt == 'q') {
        serial_cleanup(fd);
        exit(1);
-     }else{
+     } else {
        printf("Wrong character, try again!\n");
      }
-     printf("******************** NEW LOOP *********************\n");
+     printf("******************** NEW LOOP *********************\n\n");
    }
    serial_cleanup(fd);
    exit(0);

@@ -46,14 +46,13 @@ void setupInterrupt() {
 	PCMSK1 = (1<<PCINT8)|(1<<PCINT9);	//Enables PCINT8 & PCINT9, in
 	oldAB = PINC & (A|B);				//Initialize the first state.
 	sei();								//Enables interrupts (SREG)
-	DDRC |= (1<<PC5)|(1<<PC4);			//---- For testing ----
 }
 
 void setupPWM() {
 	DDRD = (1<<PD6);					//Sets PD6/OC0A to output, for PWM
 	TCCR0A = (1<<WGM01)|(1<<WGM00)|(1<<COM0A1)|(1<<(COM0A0));	//Fast PWM, set OC0A on Compare Match
 	TCCR0B = (1<<CS00);					//Clock select = no prescaling
-	OCR0A = 0x00;						//Clear reference value
+	OCR0A = 50;						//Clear reference value
 }
 
 void setupUSART() {
@@ -69,7 +68,7 @@ void setupUSART() {
 	UBRR0L = 25; //(unsigned char) ubrr;
 	
 	/* Enable reciever RXD and transmitter TXD */
-	UCSR0B = (1<<RXEN0)|(1<<TXEN0)|(1 << RXCIE0);
+	UCSR0B = (1<<RXEN0)|(1<<TXEN0)|(1<<RXCIE0);
 	/* Set frame format: 8 bit data & 1 stop bit */
 	UCSR0C |= (1<<UCSZ01)|(1<<UCSZ00);
 
@@ -77,12 +76,31 @@ void setupUSART() {
 	SREG = sreg;
 	/* Enable interrupts */
 	sei();
-	
 }
 
 void setupClock() {
-	TCCR1B = (1<<CS11);
+	TCCR1B = (1<<CS10)|(1<<CS12); 				//Prescaler 1024 bit
 	TCNT1 = 0;
+}
+
+
+
+/* Adds the time into a ringbuffer: */
+void addToBuffer(uint16_t time) {
+	ringBuffer[bufferIndex] = time;
+	bufferIndex += 1;
+	if (bufferIndex == BUFFSIZE) {
+		bufferIndex = 0;
+	}
+}
+
+uint32_t averageTime() {
+	uint32_t total = 0;
+	for (int k = 0; k < BUFFSIZE; k++) {
+		total += ringBuffer[k];
+	}
+
+	return (total>>4);
 }
 
 void increase(){
@@ -97,11 +115,12 @@ void decrease(){
 	}
 }
 
+
+
 void USART_Transmit(unsigned char data)
 {
 	/* Wait for empty transmit buffer */ 
-	while (!(UCSR0A & (1<<UDRE0)))
-		;
+	while (!(UCSR0A & (1<<UDRE0)));
 	
 	/* Put data into buffer, sends the data */ 
 	UDR0 = data;
@@ -109,36 +128,36 @@ void USART_Transmit(unsigned char data)
 
 /*Interrupt Service Routine - Handles an event when the pins changes.*/ 
 ISR(PCINT1_vect){
-	/*Local variable for only used inside ISR, Looks at pin input register
-	  and sets it as the present stage.*/
-	newAB = PINC & (A|B);
+
+	addToBuffer(TCNT1);
+	TCNT1 = 0;
+
+	// /*Local variable for only used inside ISR, Looks at pin input register
+	//   and sets it as the present stage.*/
+	// newAB = PINC & (A|B);
 	
-	/* René Sommer algorithm for increasing and decreasing the speed.*/
-	if (((((oldAB&(1<<A))>>1) | ((oldAB&(1<<B))<<1)) ^ (newAB)) == 0x01) {
-		decrease();
-	} else if (((((oldAB&(1<<A))>>1) | ((oldAB&(1<<B))<<1)) ^ (newAB)) == 0x02) {
-		increase();
-	}
-	oldAB = newAB;
+	// /* René Sommer algorithm for increasing and decreasing the speed.*/
+	// if (((((oldAB&(1<<A))>>1) | ((oldAB&(1<<B))<<1)) ^ (newAB)) == 0x01) {
+	// 	// decrease();
+	// } else if (((((oldAB&(1<<A))>>1) | ((oldAB&(1<<B))<<1)) ^ (newAB)) == 0x02) {
+	// 	// increase();
+	// }
+	// oldAB = newAB;
 }
 
 ISR(USART_RX_vect){
 	int recievedByte;
+
 	recievedByte = UDR0;
 
-	/* Echo the recieved byte */
-	USART_Transmit(recievedByte);
-}
-
-//Adds the time into a ringbuffer: 
-void addToBuffer(uint16_t time) {
-	ringbuffer[bufferIndex] = time;
-	bufferIndex += 1;
-	if(bufferIndex == BUFFSIZE){
-		bufferIndex = 0;
+	if (recievedByte == 250) {
+		USART_Transmit(recievedByte);
+	} else {
+		OCR0A = recievedByte;	//Set RPM
 	}
+	/* Echo the recieved byte */
+	//USART_Transmit(recievedByte);
 }
-
 
 
 /*The main program begins with a setup for interruptions on PCINT8 & PCINT9
@@ -153,6 +172,6 @@ int main(void){
 	setupClock();
 	
 	while (1){
-
+		rpm = (60000/averageTime());
 	}
 }
