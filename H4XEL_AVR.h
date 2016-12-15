@@ -10,10 +10,12 @@
 
 
 /*Setup for the interrupts connected to the encoder, and sets original stage*/
-void setup(void);
+void setupInterrupt(void);
 void setupPWM(void);
 void setupUSART(void);
+void setupClock(void);
 void increase(void);
 void decrease(void);
+
 
 #endif

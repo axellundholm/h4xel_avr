@@ -12,8 +12,8 @@ int serial_init(char *modemdevice);
  */
 void serial_cleanup(int fd);
 
-int serial_read();
+void serial_read();
 
-int serial_write();
+void serial_write();
 
 #endif

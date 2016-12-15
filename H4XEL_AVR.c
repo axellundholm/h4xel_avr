@@ -21,21 +21,25 @@
 #include <avr/pgmspace.h> 
 #include <avr/iomx8.h>
 
-
-
 #define A 0x01							//00000001 = A for fast usage and understanding
 #define B 0x02							//00000010 = B for fast usage and understanding
+#define BUFFSIZE 16
 
 volatile uint8_t oldAB;
 volatile uint8_t newAB;
+
+volatile uint8_t rpm;
+volatile uint8_t time;
+volatile uint8_t ringBuffer[BUFFSIZE];
+volatile uint8_t bufferIndex = 0;
+
 volatile uint8_t step = 10;
 volatile uint8_t speed = 10;
-
-
+volatile uint8_t ref;
 
 
 /*Setup for the interrupts connected to the encoder, and sets original stage*/
-void setup() {
+void setupInterrupt() {
 	DDRC &= ~((1<<PC0)|(1<<PC1));		//Sets PC0 & PC1 as input
 	PORTC = (1<<PC0)|(1<<PC1);			//PC0 & PC1 is mow pull-up enabled
 	PCICR = (1<<PCIE1);					//Enables PCINt8 & PCINT9, in control register
@@ -66,17 +70,19 @@ void setupUSART() {
 	
 	/* Enable reciever RXD and transmitter TXD */
 	UCSR0B = (1<<RXEN0)|(1<<TXEN0)|(1 << RXCIE0);
-	
-	
 	/* Set frame format: 8 bit data & 1 stop bit */
 	UCSR0C |= (1<<UCSZ01)|(1<<UCSZ00);
 
 	/* Restore global interrupt flag */
 	SREG = sreg;
-
 	/* Enable interrupts */
 	sei();
 	
+}
+
+void setupClock() {
+	TCCR1B = (1<<CS11);
+	TCNT1 = 0;
 }
 
 void increase(){
@@ -101,7 +107,6 @@ void USART_Transmit(unsigned char data)
 	UDR0 = data;
 }
 
-
 /*Interrupt Service Routine - Handles an event when the pins changes.*/ 
 ISR(PCINT1_vect){
 	/*Local variable for only used inside ISR, Looks at pin input register
@@ -121,13 +126,17 @@ ISR(USART_RX_vect){
 	int recievedByte;
 	recievedByte = UDR0;
 
-	if (recievedByte == 250) {
-		PORTC ^= (1<<PC5)|(1<<PC4);
-	} else {
-
-	}
 	/* Echo the recieved byte */
 	USART_Transmit(recievedByte);
+}
+
+//Adds the time into a ringbuffer: 
+void addToBuffer(uint16_t time) {
+	ringbuffer[bufferIndex] = time;
+	bufferIndex += 1;
+	if(bufferIndex == BUFFSIZE){
+		bufferIndex = 0;
+	}
 }
 
 
@@ -138,9 +147,10 @@ ISR(USART_RX_vect){
   like increasing or decreasing the speed of the motor.  
 */
 int main(void){
-	setup();
+	setupInterrupt();
 	setupPWM();
 	setupUSART();
+	setupClock();
 	
 	while (1){
 
