@@ -133,7 +133,7 @@ int main (){
 	
 	while(1){
 		
-		printf("n (REFERENCE) / r (READ) / q (QUIT)\n");
+		printf("r (READ) / w (WRITE) / q (QUIT)\n");
 		scanf("%c",&choice);
 		getchar();
 		if (choice == 'w') {
@@ -152,8 +152,6 @@ int main (){
 		} else if (choice == 'q') {
 			serial_cleanup(fd);
 			exit(1);
-		} else {
-			bytes_written = write(fd, buf , nbytes);
 		}
 	}
 }
