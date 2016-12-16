@@ -14,7 +14,7 @@
 #define BAUD 2400 //Baud rate, 2400 bits/sec
 #define MYUBRR (FOSC/(16UL*BAUD))-1
 #define PRESCALER 256
-#define CLK (FOSC/PRESCALER)
+#define RPMCALC (60*FOSC/24/PRESCALER)
 
 #include <H4XEL_AVR.h>
 #include <stdio.h>
@@ -36,9 +36,6 @@ volatile uint16_t timeBuffer[BUFFERSIZE];
 volatile uint8_t bufferIndex = 0;
 volatile uint32_t totalTime = 0;
 volatile uint16_t averageTime;
-
-volatile uint8_t step = 10;
-volatile uint8_t speed = 10;
 volatile uint8_t ref;
 
 
@@ -113,26 +110,31 @@ ISR(INT1_vect){
 	uint16_t time = TCNT1;
 	int pinFilter = PIND & (1<<PD2);
 
-	if (time < 255) return;		//Filter for ripples on interrupts
+	if (time > 55){		//Ridicloulus time filter
+		if (pinFilter != 0x04) {		//INT0-low-filter
+
+			/* Adds the time into a ringbuffer - 8 values. timeBuffer is unint16_t */
+			timeBuffer[bufferIndex] = TCNT1;
+			bufferIndex = (bufferIndex + 1) % BUFFERSIZE;
+
+			/* Calculates the average time. totalTime is uint32_t and averageTime is uint16_t */
+			totalTime = timeBuffer[0] + timeBuffer[1] + timeBuffer[2] + timeBuffer[3]
+					+ timeBuffer[4] + timeBuffer[5] + timeBuffer[6] + timeBuffer[7];
+			averageTime = (totalTime>>3);
+
+			TCNT1 = 0;
+		}
+		
+	}		//Filter for ripples on interrupts
 	if (pinFilter == 0x04) return;		//Filter to check if INT0 is low when INT1 triggers
 
 
-	/* Adds the time into a ringbuffer - 8 values. timeBuffer is unint16_t */
-	timeBuffer[bufferIndex] = TCNT1;
-	bufferIndex = (bufferIndex + 1) % BUFFERSIZE;
 
-	/* Calculates the average time. totalTime is uint32_t and averageTime is uint16_t */
-	totalTime = timeBuffer[0] + timeBuffer[1] + timeBuffer[2] + timeBuffer[3]
-			+ timeBuffer[4] + timeBuffer[5] + timeBuffer[6] + timeBuffer[7];
-	averageTime = (totalTime>>3);
-
-	TCNT1 = 0;
 }
 
 ISR(USART_RX_vect){
 	uint8_t recievedByte;
 	recievedByte = UDR0;
-
 	if (recievedByte == 250) {
 		USART_Transmit(rpm);
 	} else {
@@ -151,9 +153,8 @@ int main(void){
 	setupPWM();
 	setupUSART();
 	setupClock();
-	
 	while (1){
-		rpm = (60*FOSC/(24*PRESCALER*averageTime));
+		rpm = (RPMCALC)/(averageTime);
 	}
 }
 
