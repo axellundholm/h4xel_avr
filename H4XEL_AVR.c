@@ -14,7 +14,8 @@
 #define BAUD 2400 //Baud rate, 2400 bits/sec
 #define MYUBRR (FOSC/(16UL*BAUD))-1
 #define PRESCALER 256
-#define RPMCALC (60*FOSC/24/PRESCALER)
+#define RPMCONST (60*FOSC/24/PRESCALER)
+#define BUFFERSIZE 8
 
 #include <H4XEL_AVR.h>
 #include <stdio.h>
@@ -22,14 +23,6 @@
 #include <avr/interrupt.h>
 #include <avr/pgmspace.h> 
 #include <avr/iomx8.h>
-
-#define A 0x01							//00000001 = A for fast usage and understanding
-#define B 0x02							//00000010 = B for fast usage and understanding
-#define BUFFERSIZE 8
-
-
-volatile uint8_t oldAB;
-volatile uint8_t newAB;
 
 volatile uint8_t rpm;
 volatile uint16_t timeBuffer[BUFFERSIZE];
@@ -41,18 +34,10 @@ volatile uint8_t ref;
 
 /*Setup for the interrupts connected to the encoder, and sets original stage*/
 void setupInterrupt() {
-
 	PORTD = (1<<PD2)|(1<<PD3);				//Enable pullup
 	EICRA = (1<<ISC10)|(1<<ISC11);			//Trigger on INT1 rising edge
 	EIMSK = (1<<INT1);						//Enable INT1
 	sei();									//Enables interrupts (SREG)
-
-	// DDRC &= ~((1<<PC0)|(1<<PC1));		//Sets PC0 & PC1 as input
-	// PORTC = (1<<PC0)|(1<<PC1);			//PC0 & PC1 is mow pull-up enabled
-	// PCICR = (1<<PCIE1);					//Enables PCINt8 & PCINT9, in control register
-	// PCMSK1 = (1<<PCINT8)|(1<<PCINT9);	//Enables PCINT8 & PCINT9, in
-	// oldAB = PINC & (A|B);				//Initialize the first state.
-
 }
 
 void setupPWM() {
@@ -63,7 +48,6 @@ void setupPWM() {
 }
 
 void setupUSART() {
-
 	uint8_t sreg;
 	/* Save global interrupt flag */
 	sreg = SREG;
@@ -73,7 +57,6 @@ void setupUSART() {
 	/* Set baud rate */
 	UBRR0H = 0; //(unsigned char) (ubrr >> 8);
 	UBRR0L = 25; //(unsigned char) ubrr;
-	
 	/* Enable reciever RXD and transmitter TXD */
 	UCSR0B = (1<<RXEN0)|(1<<TXEN0)|(1<<RXCIE0);
 	/* Set frame format: 8 bit data & 1 stop bit */
@@ -91,8 +74,6 @@ void setupClock() {
 }
 
 void setPWM(uint8_t duty) {
-	// if (duty < 0) duty = 0;
-	// else if (duty > 255) duty = 255;
 	OCR0A = duty;
 }
 
@@ -108,13 +89,13 @@ void USART_Transmit(unsigned char data)
 /*Interrupt Service Routine - Handles an event when the pins changes.*/ 
 ISR(INT1_vect){
 	uint16_t time = TCNT1;
-	int pinFilter = PIND & (1<<PD2);
+	uint8_t pinFilter = PIND & (1<<PD2);
 
 	if (time > 55){		//Ridicloulus time filter
 		if (pinFilter != 0x04) {		//INT0-low-filter
 
 			/* Adds the time into a ringbuffer - 8 values. timeBuffer is unint16_t */
-			timeBuffer[bufferIndex] = TCNT1;
+			timeBuffer[bufferIndex] = time;
 			bufferIndex = (bufferIndex + 1) % BUFFERSIZE;
 
 			/* Calculates the average time. totalTime is uint32_t and averageTime is uint16_t */
@@ -126,10 +107,6 @@ ISR(INT1_vect){
 		}
 		
 	}		//Filter for ripples on interrupts
-	if (pinFilter == 0x04) return;		//Filter to check if INT0 is low when INT1 triggers
-
-
-
 }
 
 ISR(USART_RX_vect){
@@ -153,11 +130,17 @@ int main(void){
 	setupPWM();
 	setupUSART();
 	setupClock();
+
 	while (1){
-		rpm = (RPMCALC)/(averageTime);
+		rpm = (RPMCONST)/(averageTime);
 	}
 }
 
+
+// #define A 0x01							//00000001 = A for fast usage and understanding
+// #define B 0x02							//00000010 = B for fast usage and understanding
+// volatile uint8_t oldAB;
+// volatile uint8_t newAB;
 
 
 	// /*Local variable for only used inside ISR, Looks at pin input register
