@@ -29,7 +29,15 @@ volatile uint16_t timeBuffer[BUFFERSIZE];
 volatile uint8_t bufferIndex = 0;
 volatile uint32_t totalTime = 0;
 volatile uint16_t averageTime;
-volatile uint8_t ref;
+
+volatile double K = 5;
+volatile double Ti;
+
+volatile uint8_t reference = 90;
+volatile short error;
+volatile double integrator;
+volatile short u;
+
 
 
 /*Setup for the interrupts connected to the encoder, and sets original stage*/
@@ -73,8 +81,20 @@ void setupClock() {
 	TCNT1 = 0;
 }
 
-void setPWM(uint8_t duty) {
+void setPWM(int duty) {
+	if (duty < 0) {
+		duty = 0;
+	} else if (duty > 240) {
+		duty = 240;
+	}
 	OCR0A = duty;
+}
+
+void control() {
+	error = (reference - rpm);
+
+	u = (K * error);
+	setPWM(u);
 }
 
 void USART_Transmit(unsigned char data)
@@ -91,7 +111,7 @@ ISR(INT1_vect){
 	uint16_t time = TCNT1;
 	uint8_t pinFilter = PIND & (1<<PD2);
 
-	if (time > 55){		//Ridicloulus time filter
+	if (time > 55){						//Ridicloulus time filter
 		if (pinFilter != 0x04) {		//INT0-low-filter
 
 			/* Adds the time into a ringbuffer - 8 values. timeBuffer is unint16_t */
@@ -102,11 +122,9 @@ ISR(INT1_vect){
 			totalTime = timeBuffer[0] + timeBuffer[1] + timeBuffer[2] + timeBuffer[3]
 					+ timeBuffer[4] + timeBuffer[5] + timeBuffer[6] + timeBuffer[7];
 			averageTime = (totalTime>>3);
-
 			TCNT1 = 0;
 		}
-		
-	}		//Filter for ripples on interrupts
+	}
 }
 
 ISR(USART_RX_vect){
@@ -115,24 +133,27 @@ ISR(USART_RX_vect){
 	if (recievedByte == 250) {
 		USART_Transmit(rpm);
 	} else {
-		setPWM(recievedByte);	//Set RPM (right now it sets PWM)
+		reference = recievedByte;
+		// setPWM(recievedByte);			//Set RPM (right now it sets PWM)
 	}
 }
 
-
-/*The main program begins with a setup for interruptions on PCINT8 & PCINT9
-  then a infinite while-loop starts, awaiting for an interrupt to occur.
-  The interrupt then handles the events, 
-  like increasing or decreasing the speed of the motor.  
-*/
+/* Main loop */
 int main(void){
 	setupInterrupt();
 	setupPWM();
 	setupUSART();
 	setupClock();
+	int counter = 0;
 
 	while (1){
-		rpm = (RPMCONST)/(averageTime);
+		rpm = RPMCONST/averageTime;
+		if (TCNT0 == 255 || counter == 2) {				//Update controller when TCNT0 reaches MAX
+			control();
+			counter = 0;
+		} else {
+			counter += 1;
+		}
 	}
 }
 
