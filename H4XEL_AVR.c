@@ -13,6 +13,8 @@
 #define FOSC 1000000 //Clock speed, 1MHz
 #define BAUD 2400 //Baud rate, 2400 bits/sec
 #define MYUBRR (FOSC/(16UL*BAUD))-1
+#define PRESCALER 256
+#define CLK (FOSC/PRESCALER)
 
 #include <H4XEL_AVR.h>
 #include <stdio.h>
@@ -23,15 +25,17 @@
 
 #define A 0x01							//00000001 = A for fast usage and understanding
 #define B 0x02							//00000010 = B for fast usage and understanding
-#define BUFFSIZE 16
+#define BUFFERSIZE 8
+
 
 volatile uint8_t oldAB;
 volatile uint8_t newAB;
 
 volatile uint8_t rpm;
-volatile uint8_t time;
-volatile uint8_t ringBuffer[BUFFSIZE];
+volatile uint16_t timeBuffer[BUFFERSIZE];
 volatile uint8_t bufferIndex = 0;
+volatile uint32_t totalTime = 0;
+volatile uint16_t averageTime;
 
 volatile uint8_t step = 10;
 volatile uint8_t speed = 10;
@@ -40,19 +44,25 @@ volatile uint8_t ref;
 
 /*Setup for the interrupts connected to the encoder, and sets original stage*/
 void setupInterrupt() {
-	DDRC &= ~((1<<PC0)|(1<<PC1));		//Sets PC0 & PC1 as input
-	PORTC = (1<<PC0)|(1<<PC1);			//PC0 & PC1 is mow pull-up enabled
-	PCICR = (1<<PCIE1);					//Enables PCINt8 & PCINT9, in control register
-	PCMSK1 = (1<<PCINT8)|(1<<PCINT9);	//Enables PCINT8 & PCINT9, in
-	oldAB = PINC & (A|B);				//Initialize the first state.
-	sei();								//Enables interrupts (SREG)
+
+	PORTD = (1<<PD2)|(1<<PD3);				//Enable pullup
+	EICRA = (1<<ISC10)|(1<<ISC11);			//Trigger on INT1 rising edge
+	EIMSK = (1<<INT1);						//Enable INT1
+	sei();									//Enables interrupts (SREG)
+
+	// DDRC &= ~((1<<PC0)|(1<<PC1));		//Sets PC0 & PC1 as input
+	// PORTC = (1<<PC0)|(1<<PC1);			//PC0 & PC1 is mow pull-up enabled
+	// PCICR = (1<<PCIE1);					//Enables PCINt8 & PCINT9, in control register
+	// PCMSK1 = (1<<PCINT8)|(1<<PCINT9);	//Enables PCINT8 & PCINT9, in
+	// oldAB = PINC & (A|B);				//Initialize the first state.
+
 }
 
 void setupPWM() {
 	DDRD = (1<<PD6);					//Sets PD6/OC0A to output, for PWM
 	TCCR0A = (1<<WGM01)|(1<<WGM00)|(1<<COM0A1)|(1<<(COM0A0));	//Fast PWM, set OC0A on Compare Match
 	TCCR0B = (1<<CS00);					//Clock select = no prescaling
-	OCR0A = 50;						//Clear reference value
+	OCR0A = 0x00;						//Clear reference value
 }
 
 void setupUSART() {
@@ -79,43 +89,15 @@ void setupUSART() {
 }
 
 void setupClock() {
-	TCCR1B = (1<<CS10)|(1<<CS12); 				//Prescaler 1024 bit
+	TCCR1B = (1<<CS12); 				//Prescaler 256 bit
 	TCNT1 = 0;
 }
 
-
-
-/* Adds the time into a ringbuffer: */
-void addToBuffer(uint16_t time) {
-	ringBuffer[bufferIndex] = time;
-	bufferIndex += 1;
-	if (bufferIndex == BUFFSIZE) {
-		bufferIndex = 0;
-	}
+void setPWM(uint8_t duty) {
+	// if (duty < 0) duty = 0;
+	// else if (duty > 255) duty = 255;
+	OCR0A = duty;
 }
-
-int averageTime() {
-	uint32_t total = 0;
-	for (int k = 0; k < BUFFSIZE; k++) {
-		total += ringBuffer[k];
-	}
-
-	return (total>>4);
-}
-
-void increase(){
-	if (OCR0A <= (255-step)){
-		OCR0A += step;
-	}
-}
-
-void decrease(){
-	if (OCR0A >= step){
-		OCR0A -= step;
-	}
-}
-
-
 
 void USART_Transmit(unsigned char data)
 {
@@ -127,22 +109,24 @@ void USART_Transmit(unsigned char data)
 }
 
 /*Interrupt Service Routine - Handles an event when the pins changes.*/ 
-ISR(PCINT1_vect){
+ISR(INT1_vect){
+	uint16_t time = TCNT1;
+	int pinFilter = PIND & (1<<PD2);
 
-	addToBuffer(TCNT1);
+	if (time < 255) return;		//Filter for ripples on interrupts
+	if (pinFilter == 0x04) return;		//Filter to check if INT0 is low when INT1 triggers
+
+
+	/* Adds the time into a ringbuffer - 8 values. timeBuffer is unint16_t */
+	timeBuffer[bufferIndex] = TCNT1;
+	bufferIndex = (bufferIndex + 1) % BUFFERSIZE;
+
+	/* Calculates the average time. totalTime is uint32_t and averageTime is uint16_t */
+	totalTime = timeBuffer[0] + timeBuffer[1] + timeBuffer[2] + timeBuffer[3]
+			+ timeBuffer[4] + timeBuffer[5] + timeBuffer[6] + timeBuffer[7];
+	averageTime = (totalTime>>3);
+
 	TCNT1 = 0;
-
-	// /*Local variable for only used inside ISR, Looks at pin input register
-	//   and sets it as the present stage.*/
-	// newAB = PINC & (A|B);
-	
-	// /* René Sommer algorithm for increasing and decreasing the speed.*/
-	// if (((((oldAB&(1<<A))>>1) | ((oldAB&(1<<B))<<1)) ^ (newAB)) == 0x01) {
-	// 	// decrease();
-	// } else if (((((oldAB&(1<<A))>>1) | ((oldAB&(1<<B))<<1)) ^ (newAB)) == 0x02) {
-	// 	// increase();
-	// }
-	// oldAB = newAB;
 }
 
 ISR(USART_RX_vect){
@@ -152,11 +136,8 @@ ISR(USART_RX_vect){
 	if (recievedByte == 250) {
 		USART_Transmit(rpm);
 	} else {
-		OCR0A = recievedByte;	//Set RPM
+		setPWM(recievedByte);	//Set RPM (right now it sets PWM)
 	}
-
-	/* Echo the recieved byte */
-	// USART_Transmit(recievedByte);
 }
 
 
@@ -172,6 +153,33 @@ int main(void){
 	setupClock();
 	
 	while (1){
-		rpm = (60000/averageTime());
+		rpm = (60*FOSC/(24*PRESCALER*averageTime));
 	}
 }
+
+
+
+	// /*Local variable for only used inside ISR, Looks at pin input register
+	//   and sets it as the present stage.*/
+	// newAB = PINC & (A|B);
+	
+	// /* René Sommer algorithm for increasing and decreasing the speed.*/
+	// if (((((oldAB&(1<<A))>>1) | ((oldAB&(1<<B))<<1)) ^ (newAB)) == 0x01) {
+	// 	// decrease();
+	// } else if (((((oldAB&(1<<A))>>1) | ((oldAB&(1<<B))<<1)) ^ (newAB)) == 0x02) {
+	// 	// increase();
+	// }
+	// oldAB = newAB;
+
+
+// void increase(){
+// 	if (OCR0A <= (255-step)){
+// 		OCR0A += step;
+// 	}
+// }
+
+// void decrease(){
+// 	if (OCR0A >= step){
+// 		OCR0A -= step;
+// 	}
+// }

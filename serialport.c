@@ -135,10 +135,11 @@ int main (){
 		
 		printf("r (READ) / w (WRITE) / q (QUIT)\n");
 		scanf("%c",&choice);
+		getchar();
 		if (choice == 'w') {
 			printf("Set reference speed: ");
 			scanf("%d",&buf);
-
+			getchar();
 			bytes_written = write(fd, buf , nbytes);
 		} else if (choice == 'r') { 
 			buf[0] = 250;
@@ -147,7 +148,7 @@ int main (){
 			bytes_read = read(fd, buf, nbytes);
 
 			printf("Speed is ");
-			printf("%d\n", *buf);
+			printf("%d\n\n", *buf);
 		} else if (choice == 'q') {
 			serial_cleanup(fd);
 			exit(1);
