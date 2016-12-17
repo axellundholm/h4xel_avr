@@ -132,14 +132,15 @@ ISR(INT1_vect) {
 					+ timeBuffer[4] + timeBuffer[5] + timeBuffer[6] + timeBuffer[7];
 			averageTime = (totalTime>>3);
 			TCNT1 = 0;
+
+			if (counter == 3) {
+				switchLEDS();
+				counter = 0;
+			} else {
+				counter += 1;
+			}
 		}
 	}
-
-	if (counter == 3) {
-		switchLEDS();
-		counter = 0;
-	}
-	counter += 1;
 }
 
 ISR(USART_RX_vect) {
