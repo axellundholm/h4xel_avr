@@ -29,13 +29,14 @@ volatile uint16_t timeBuffer[BUFFERSIZE];
 volatile uint8_t bufferIndex = 0;
 volatile uint32_t totalTime = 0;
 volatile uint16_t averageTime;
+volatile uint8_t counter = 0;
 
 volatile double Kp = 3.0;
 volatile double Ki = 0.5;
 volatile double	Kd = 4.0;
 volatile double Kb = 0.8;
 
-volatile uint8_t reference = 50;
+volatile uint8_t reference = 60;
 volatile short error;
 volatile short prevError = 0;
 volatile double ipart = 0;
@@ -44,6 +45,10 @@ volatile short u;
 volatile short usat;
 
 
+void setupLEDS() {
+	PORTC = (1<<PC0)|(1<<PC1)|(1<<PC2)|(1<<PC3)|(1<<PC4)|(1<<PC5);
+	DDRC = (1<<PC0);
+}
 
 /*Setup for the interrupts connected to the encoder, and sets original stage*/
 void setupInterrupt() {
@@ -94,6 +99,14 @@ void control() {
 	OCR0A = usat;
 }
 
+void switchLEDS() {
+	if (DDRC == (1<<PC5)) {
+		DDRC = (1<<PC0);
+	} else {
+		DDRC = (DDRC<<1);		
+	}
+}
+
 void USART_Transmit(unsigned char data) {
 	/* Wait for empty transmit buffer */ 
 	while (!(UCSR0A & (1<<UDRE0)));
@@ -121,6 +134,12 @@ ISR(INT1_vect) {
 			TCNT1 = 0;
 		}
 	}
+
+	if (counter == 3) {
+		switchLEDS();
+		counter = 0;
+	}
+	counter += 1;
 }
 
 ISR(USART_RX_vect) {
@@ -136,6 +155,7 @@ ISR(USART_RX_vect) {
 
 /* Main loop */
 int main(void){
+	setupLEDS();
 	setupInterrupt();
 	setupPWM();
 	setupUSART();
