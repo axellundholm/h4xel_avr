@@ -125,10 +125,10 @@ int main (){
 
 	int fd = serial_init("/dev/ttyS0");
 
-	unsigned  char buf [20];
-	size_t  nbytes = 1;
-	ssize_t  bytes_written;
-	ssize_t  bytes_read;
+	unsigned char buf [20];
+	size_t nbytes = 1;
+	ssize_t bytes_written;
+	ssize_t bytes_read;
 	unsigned char choice;
 	
 	while(1){
