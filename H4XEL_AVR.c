@@ -30,12 +30,12 @@ volatile uint8_t bufferIndex = 0;
 volatile uint32_t totalTime = 0;
 volatile uint16_t averageTime;
 
-volatile double K = 5;
-volatile double Ti;
+volatile double K = 2;		//2 works
+volatile double Ti = 2;		//2 works
 
-volatile uint8_t reference = 90;
+volatile uint8_t reference = 50;
 volatile short error;
-volatile double integrator;
+volatile double integrator = 0;
 volatile short u;
 
 
@@ -84,16 +84,22 @@ void setupClock() {
 void setPWM(int duty) {
 	if (duty < 0) {
 		duty = 0;
-	} else if (duty > 240) {
-		duty = 240;
+		if (error < 0) {
+			integrator -= (error / Ti);		//Anti windup
+		}
+	} else if (duty > 255) {
+		duty = 255;
+		if (error > 0) {
+			integrator -= (error / Ti);		//Anti windup
+		}
 	}
 	OCR0A = duty;
 }
 
 void control() {
 	error = (reference - rpm);
-
-	u = (K * error);
+	integrator += (error / Ti);
+	u = (K * error) + integrator;
 	setPWM(u);
 }
 
@@ -111,8 +117,8 @@ ISR(INT1_vect){
 	uint16_t time = TCNT1;
 	uint8_t pinFilter = PIND & (1<<PD2);
 
-	if (time > 55){						//Ridicloulus time filter
-		if (pinFilter != 0x04) {		//INT0-low-filter
+	if (time > 55){						//Ridiculous time filter
+		if (pinFilter != 0x04) {		//INT0 low filter
 
 			/* Adds the time into a ringbuffer - 8 values. timeBuffer is unint16_t */
 			timeBuffer[bufferIndex] = time;
@@ -130,6 +136,7 @@ ISR(INT1_vect){
 ISR(USART_RX_vect){
 	uint8_t recievedByte;
 	recievedByte = UDR0;
+
 	if (recievedByte == 250) {
 		USART_Transmit(rpm);
 	} else {
@@ -144,15 +151,13 @@ int main(void){
 	setupPWM();
 	setupUSART();
 	setupClock();
-	int counter = 0;
 
 	while (1){
 		rpm = RPMCONST/averageTime;
-		if (TCNT0 == 255 || counter == 2) {				//Update controller when TCNT0 reaches MAX
+
+		if (TCNT0 == 255 || TCNT0 == 127) {				//Update controller when TCNT0 reaches MAX
 			control();
-			counter = 0;
 		} else {
-			counter += 1;
 		}
 	}
 }
