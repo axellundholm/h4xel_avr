@@ -138,13 +138,12 @@ int main (){
 		getchar();
 		if (choice == 'w') {
 			printf("Set reference speed: ");
-			scanf("%d\n",&buf);
+			scanf("%d",&buf);
 			getchar();
 			bytes_written = write(fd, buf , nbytes);
 		} else if (choice == 'r') { 
 			buf[0] = 250;
 			bytes_written = write(fd, buf , nbytes);
-
 			bytes_read = read(fd, buf, nbytes);
 
 			printf("Speed is ");

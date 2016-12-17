@@ -30,13 +30,18 @@ volatile uint8_t bufferIndex = 0;
 volatile uint32_t totalTime = 0;
 volatile uint16_t averageTime;
 
-volatile double K = 2;		//2 works
-volatile double Ti = 2;		//2 works
+volatile double Kp = 3.0;
+volatile double Ki = 0.5;
+volatile double	Kd = 4.0;
+volatile double Kb = 0.8;
 
 volatile uint8_t reference = 50;
 volatile short error;
-volatile double integrator = 0;
+volatile short prevError = 0;
+volatile double ipart = 0;
+volatile double dpart = 0;
 volatile short u;
+volatile short usat;
 
 
 
@@ -56,12 +61,6 @@ void setupPWM() {
 }
 
 void setupUSART() {
-	uint8_t sreg;
-	/* Save global interrupt flag */
-	sreg = SREG;
-	/* Disable interrupts */
-	cli();
-
 	/* Set baud rate */
 	UBRR0H = 0; //(unsigned char) (ubrr >> 8);
 	UBRR0L = 25; //(unsigned char) ubrr;
@@ -69,11 +68,6 @@ void setupUSART() {
 	UCSR0B = (1<<RXEN0)|(1<<TXEN0)|(1<<RXCIE0);
 	/* Set frame format: 8 bit data & 1 stop bit */
 	UCSR0C |= (1<<UCSZ01)|(1<<UCSZ00);
-
-	/* Restore global interrupt flag */
-	SREG = sreg;
-	/* Enable interrupts */
-	sei();
 }
 
 void setupClock() {
@@ -81,30 +75,26 @@ void setupClock() {
 	TCNT1 = 0;
 }
 
-void setPWM(int duty) {
-	if (duty < 0) {
-		duty = 0;
-		if (error < 0) {
-			integrator -= (error / Ti);		//Anti windup
-		}
-	} else if (duty > 255) {
-		duty = 255;
-		if (error > 0) {
-			integrator -= (error / Ti);		//Anti windup
-		}
-	}
-	OCR0A = duty;
-}
-
 void control() {
 	error = (reference - rpm);
-	integrator += (error / Ti);
-	u = (K * error) + integrator;
-	setPWM(u);
+	ipart += error;
+	dpart = error - prevError;
+	u = (Kp * error) + (Ki * ipart) + (Kd * dpart);
+	prevError = error;
+
+	if (u < 0) {
+		usat = 0;
+	} else if (u > 255) {
+		usat = 255;
+	} else {
+		usat = u;
+	}
+
+	ipart -= Kb * (u - usat);					//Anti-Windup
+	OCR0A = usat;
 }
 
-void USART_Transmit(unsigned char data)
-{
+void USART_Transmit(unsigned char data) {
 	/* Wait for empty transmit buffer */ 
 	while (!(UCSR0A & (1<<UDRE0)));
 	
@@ -113,7 +103,7 @@ void USART_Transmit(unsigned char data)
 }
 
 /*Interrupt Service Routine - Handles an event when the pins changes.*/ 
-ISR(INT1_vect){
+ISR(INT1_vect) {
 	uint16_t time = TCNT1;
 	uint8_t pinFilter = PIND & (1<<PD2);
 
@@ -133,7 +123,7 @@ ISR(INT1_vect){
 	}
 }
 
-ISR(USART_RX_vect){
+ISR(USART_RX_vect) {
 	uint8_t recievedByte;
 	recievedByte = UDR0;
 
@@ -141,7 +131,6 @@ ISR(USART_RX_vect){
 		USART_Transmit(rpm);
 	} else {
 		reference = recievedByte;
-		// setPWM(recievedByte);			//Set RPM (right now it sets PWM)
 	}
 }
 
@@ -152,22 +141,14 @@ int main(void){
 	setupUSART();
 	setupClock();
 
-	while (1){
+	while (1) {
 		rpm = RPMCONST/averageTime;
 
 		if (TCNT0 == 255 || TCNT0 == 127) {				//Update controller when TCNT0 reaches MAX
 			control();
-		} else {
 		}
 	}
 }
-
-
-// #define A 0x01							//00000001 = A for fast usage and understanding
-// #define B 0x02							//00000010 = B for fast usage and understanding
-// volatile uint8_t oldAB;
-// volatile uint8_t newAB;
-
 
 	// /*Local variable for only used inside ISR, Looks at pin input register
 	//   and sets it as the present stage.*/
@@ -175,21 +156,6 @@ int main(void){
 	
 	// /* René Sommer algorithm for increasing and decreasing the speed.*/
 	// if (((((oldAB&(1<<A))>>1) | ((oldAB&(1<<B))<<1)) ^ (newAB)) == 0x01) {
-	// 	// decrease();
 	// } else if (((((oldAB&(1<<A))>>1) | ((oldAB&(1<<B))<<1)) ^ (newAB)) == 0x02) {
-	// 	// increase();
 	// }
 	// oldAB = newAB;
-
-
-// void increase(){
-// 	if (OCR0A <= (255-step)){
-// 		OCR0A += step;
-// 	}
-// }
-
-// void decrease(){
-// 	if (OCR0A >= step){
-// 		OCR0A -= step;
-// 	}
-// }
