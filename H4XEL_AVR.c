@@ -165,7 +165,7 @@ int main(void){
 	while (1) {
 		rpm = RPMCONST/averageTime;
 
-		if (TCNT0 == 255 || TCNT0 == 127) {				//Update controller when TCNT0 reaches MAX
+		if (TCNT0 == 255 || TCNT0 == 127) {				//Update controller when TCNT0 reaches MAX or MAX/2
 			control();
 		}
 	}
