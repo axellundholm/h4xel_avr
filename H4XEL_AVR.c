@@ -26,21 +26,21 @@
 
 volatile uint8_t rpm;
 volatile uint16_t timeBuffer[BUFFERSIZE];
-volatile uint8_t bufferIndex = 0;
-volatile uint32_t totalTime = 0;
+volatile uint8_t bufferIndex;
+volatile uint32_t totalTime;
 volatile uint16_t averageTime;
-volatile uint8_t counter = 0;
+volatile uint8_t counter;
 
-volatile double Kp = 3.0;
+volatile double Kp = 1.0;
 volatile double Ki = 0.5;
 volatile double	Kd = 4.0;
-volatile double Kb = 0.8;
+volatile double Kb = 1.0;
 
 volatile uint8_t reference = 60;
 volatile short error;
-volatile short prevError = 0;
-volatile double ipart = 0;
-volatile double dpart = 0;
+volatile short prevError;
+volatile double ipart;
+volatile double dpart;
 volatile short u;
 volatile short usat;
 

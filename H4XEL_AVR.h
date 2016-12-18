@@ -10,11 +10,13 @@
 
 
 /*Setup for the interrupts connected to the encoder, and sets original stage*/
+void setupLEDS(void);
 void setupInterrupt(void);
 void setupPWM(void);
 void setupUSART(void);
 void setupClock(void);
-void increase(void);
-void decrease(void);
+void control(void);
+void switchLEDS(void);
+void USART_Transmit(unsigned char data);
 
 #endif
